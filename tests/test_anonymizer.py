@@ -189,6 +189,76 @@ class TestDataAnonymizer(unittest.TestCase):
             anon_data[0]["location"]["latitude"],
             40.7128
         )
+    
+    def test_anonymize_company(self):
+        """Test company name anonymization."""
+        company = "Acme Corporation"
+        anon_company = self.anonymizer.anonymize_company(company)
+        self.assertNotEqual(company, anon_company)
+        self.assertIsInstance(anon_company, str)
+        self.assertGreater(len(anon_company), 0)
+    
+    def test_anonymize_company_consistency(self):
+        """Test that same company always maps to same anonymized company."""
+        company = "Tech Corp"
+        anon1 = self.anonymizer.anonymize_company(company)
+        anon2 = self.anonymizer.anonymize_company(company)
+        self.assertEqual(anon1, anon2)
+    
+    def test_anonymize_ssn(self):
+        """Test SSN anonymization."""
+        ssn = "123-45-6789"
+        anon_ssn = self.anonymizer.anonymize_ssn(ssn)
+        self.assertNotEqual(ssn, anon_ssn)
+        self.assertIsInstance(anon_ssn, str)
+    
+    def test_anonymize_ssn_consistency(self):
+        """Test that same SSN always maps to same anonymized SSN."""
+        ssn = "987-65-4321"
+        anon1 = self.anonymizer.anonymize_ssn(ssn)
+        anon2 = self.anonymizer.anonymize_ssn(ssn)
+        self.assertEqual(anon1, anon2)
+    
+    def test_anonymize_credit_card(self):
+        """Test credit card anonymization."""
+        card = "4532-1234-5678-9010"
+        anon_card = self.anonymizer.anonymize_credit_card(card)
+        self.assertNotEqual(card, anon_card)
+        self.assertIsInstance(anon_card, str)
+        # Check it's numeric
+        self.assertTrue(anon_card.replace(' ', '').isdigit())
+    
+    def test_anonymize_credit_card_consistency(self):
+        """Test that same card always maps to same anonymized card."""
+        card = "5425-2334-3010-9903"
+        anon1 = self.anonymizer.anonymize_credit_card(card)
+        anon2 = self.anonymizer.anonymize_credit_card(card)
+        self.assertEqual(anon1, anon2)
+    
+    def test_locale_support(self):
+        """Test that different locales produce different results."""
+        anonymizer_us = DataAnonymizer(seed=42, locale='en_US')
+        anonymizer_es = DataAnonymizer(seed=42, locale='es_ES')
+        
+        name = "John Smith"
+        anon_us = anonymizer_us.anonymize_name(name)
+        anon_es = anonymizer_es.anonymize_name(name)
+        
+        # Names should be different (different locales)
+        # Note: This might occasionally fail due to random chance, but very unlikely
+        self.assertNotEqual(anon_us, anon_es)
+    
+    def test_faker_name_diversity(self):
+        """Test that Faker provides diverse names."""
+        anonymizer = DataAnonymizer(seed=None, locale='en_US')
+        
+        # Generate 50 random names
+        names = [anonymizer.anonymize_name(f"Person{i}", consistent=False) 
+                for i in range(50)]
+        unique_names = len(set(names))
+        
+        # Should have high diversity (at least 45 unique out of 50)
+        self.assertGreater(unique_names, 45)
 
 
 if __name__ == "__main__":

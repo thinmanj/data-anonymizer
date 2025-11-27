@@ -6,6 +6,7 @@ import random
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime
 import numpy as np
+from faker import Faker
 
 
 class MonetaryTransformer:
@@ -52,25 +53,33 @@ class MonetaryTransformer:
 class DataAnonymizer:
     """Main anonymization class for various data types."""
     
-    def __init__(self, seed: int = None):
+    def __init__(self, seed: int = None, locale: str = 'en_US'):
         """
         Initialize the anonymizer.
         
         Args:
             seed: Random seed for reproducibility
+            locale: Locale for generating fake data (e.g., 'en_US', 'es_ES', 'fr_FR')
         """
         self.seed = seed
+        self.locale = locale
+        
         if seed is not None:
             random.seed(seed)
             np.random.seed(seed)
+            Faker.seed(seed)
         
+        self.faker = Faker(locale)
         self.monetary_transformer = MonetaryTransformer(seed=seed)
         self._name_cache = {}
         self._address_cache = {}
+        self._company_cache = {}
+        self._ssn_cache = {}
+        self._credit_card_cache = {}
         
     def anonymize_name(self, name: str, consistent: bool = True) -> str:
         """
-        Anonymize a person's name.
+        Anonymize a person's name using Faker.
         
         Args:
             name: Original name
@@ -85,29 +94,21 @@ class DataAnonymizer:
         # Generate deterministic fake name based on hash
         if consistent:
             hash_val = int(hashlib.sha256(name.encode()).hexdigest(), 16)
-            random.seed(hash_val)
-        
-        first_names = [
-            "Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Quinn",
-            "Avery", "Parker", "Reese", "Sage", "Rowan", "Blake", "Drew"
-        ]
-        last_names = [
-            "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller",
-            "Davis", "Rodriguez", "Martinez", "Wilson", "Anderson", "Taylor"
-        ]
-        
-        fake_name = f"{random.choice(first_names)} {random.choice(last_names)}"
+            # Create a temporary Faker instance with the hash as seed
+            temp_faker = Faker(self.locale)
+            temp_faker.seed_instance(hash_val)
+            fake_name = temp_faker.name()
+        else:
+            fake_name = self.faker.name()
         
         if consistent:
             self._name_cache[name] = fake_name
-            if self.seed is not None:
-                random.seed(self.seed)
         
         return fake_name
     
     def anonymize_address(self, address: str, consistent: bool = True) -> str:
         """
-        Anonymize a street address.
+        Anonymize a street address using Faker.
         
         Args:
             address: Original address
@@ -121,24 +122,14 @@ class DataAnonymizer:
         
         if consistent:
             hash_val = int(hashlib.sha256(address.encode()).hexdigest(), 16)
-            random.seed(hash_val)
-        
-        street_names = [
-            "Oak", "Maple", "Cedar", "Pine", "Elm", "Birch", "Willow",
-            "Main", "Park", "Lake", "River", "Hill", "Valley"
-        ]
-        street_types = ["St", "Ave", "Rd", "Ln", "Dr", "Ct", "Way", "Blvd"]
-        
-        number = random.randint(100, 9999)
-        street = random.choice(street_names)
-        st_type = random.choice(street_types)
-        
-        fake_address = f"{number} {street} {st_type}"
+            temp_faker = Faker(self.locale)
+            temp_faker.seed_instance(hash_val)
+            fake_address = temp_faker.street_address()
+        else:
+            fake_address = self.faker.street_address()
         
         if consistent:
             self._address_cache[address] = fake_address
-            if self.seed is not None:
-                random.seed(self.seed)
         
         return fake_address
     
@@ -207,7 +198,7 @@ class DataAnonymizer:
     
     def anonymize_phone(self, phone: str, consistent: bool = True) -> str:
         """
-        Anonymize a phone number.
+        Anonymize a phone number using Faker.
         
         Args:
             phone: Original phone number
@@ -218,19 +209,94 @@ class DataAnonymizer:
         """
         if consistent:
             hash_val = int(hashlib.sha256(phone.encode()).hexdigest(), 16)
-            random.seed(hash_val)
-        
-        # Generate US-style phone number
-        area_code = random.randint(200, 999)
-        exchange = random.randint(200, 999)
-        number = random.randint(1000, 9999)
-        
-        fake_phone = f"({area_code}) {exchange}-{number}"
-        
-        if consistent and self.seed is not None:
-            random.seed(self.seed)
+            temp_faker = Faker(self.locale)
+            temp_faker.seed_instance(hash_val)
+            fake_phone = temp_faker.phone_number()
+        else:
+            fake_phone = self.faker.phone_number()
         
         return fake_phone
+    
+    def anonymize_company(self, company: str, consistent: bool = True) -> str:
+        """
+        Anonymize a company name using Faker.
+        
+        Args:
+            company: Original company name
+            consistent: If True, same company always maps to same anonymized company
+        
+        Returns:
+            Anonymized company name
+        """
+        if consistent and company in self._company_cache:
+            return self._company_cache[company]
+        
+        if consistent:
+            hash_val = int(hashlib.sha256(company.encode()).hexdigest(), 16)
+            temp_faker = Faker(self.locale)
+            temp_faker.seed_instance(hash_val)
+            fake_company = temp_faker.company()
+        else:
+            fake_company = self.faker.company()
+        
+        if consistent:
+            self._company_cache[company] = fake_company
+        
+        return fake_company
+    
+    def anonymize_ssn(self, ssn: str, consistent: bool = True) -> str:
+        """
+        Anonymize a Social Security Number using Faker.
+        
+        Args:
+            ssn: Original SSN
+            consistent: If True, same SSN always maps to same anonymized SSN
+        
+        Returns:
+            Anonymized SSN
+        """
+        if consistent and ssn in self._ssn_cache:
+            return self._ssn_cache[ssn]
+        
+        if consistent:
+            hash_val = int(hashlib.sha256(ssn.encode()).hexdigest(), 16)
+            temp_faker = Faker(self.locale)
+            temp_faker.seed_instance(hash_val)
+            fake_ssn = temp_faker.ssn()
+        else:
+            fake_ssn = self.faker.ssn()
+        
+        if consistent:
+            self._ssn_cache[ssn] = fake_ssn
+        
+        return fake_ssn
+    
+    def anonymize_credit_card(self, card: str, consistent: bool = True) -> str:
+        """
+        Anonymize a credit card number using Faker (generates Luhn-valid numbers).
+        
+        Args:
+            card: Original credit card number
+            consistent: If True, same card always maps to same anonymized card
+        
+        Returns:
+            Anonymized credit card number
+        """
+        if consistent and card in self._credit_card_cache:
+            return self._credit_card_cache[card]
+        
+        if consistent:
+            hash_val = int(hashlib.sha256(card.encode()).hexdigest(), 16)
+            temp_faker = Faker(self.locale)
+            temp_faker.seed_instance(hash_val)
+            fake_card = temp_faker.credit_card_number()
+        else:
+            fake_card = self.faker.credit_card_number()
+        
+        if consistent:
+            self._credit_card_cache[card] = fake_card
+        
+        return fake_card
     
     def anonymize_dataset(
         self,
@@ -244,7 +310,8 @@ class DataAnonymizer:
         Args:
             data: List of records (dictionaries)
             field_types: Mapping of field names to types
-                        ('name', 'address', 'email', 'phone', 'monetary', 'geolocation')
+                        ('name', 'address', 'email', 'phone', 'company', 'ssn', 
+                         'credit_card', 'monetary', 'geolocation')
             **kwargs: Additional parameters (e.g., noise_radius_km for geolocation)
         
         Returns:
@@ -267,6 +334,12 @@ class DataAnonymizer:
                     anonymized_record[field] = self.anonymize_email(record[field])
                 elif field_type == 'phone':
                     anonymized_record[field] = self.anonymize_phone(record[field])
+                elif field_type == 'company':
+                    anonymized_record[field] = self.anonymize_company(record[field])
+                elif field_type == 'ssn':
+                    anonymized_record[field] = self.anonymize_ssn(record[field])
+                elif field_type == 'credit_card':
+                    anonymized_record[field] = self.anonymize_credit_card(record[field])
                 elif field_type == 'monetary':
                     anonymized_record[field] = self.anonymize_monetary(record[field])
                 elif field_type == 'geolocation':

@@ -2,5 +2,5 @@
 
 from .anonymizer import DataAnonymizer, MonetaryTransformer
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = ["DataAnonymizer", "MonetaryTransformer"]
