@@ -1,0 +1,4 @@
+id,name,email,phone,address,latitude,longitude,salary,bonus
+1,John Smith,john.smith@company.com,(555) 123-4567,123 Main St,40.7128,-74.0060,75000,5000
+2,Jane Doe,jane.doe@company.com,(555) 234-5678,456 Oak Ave,34.0522,-118.2437,82000,6500
+3,Bob Johnson,bob.j@company.com,(555) 345-6789,789 Pine Rd,41.8781,-87.6298,68000,4200
