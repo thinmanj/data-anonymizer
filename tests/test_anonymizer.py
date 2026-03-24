@@ -5,8 +5,9 @@ import sys
 sys.path.insert(0, '../src')
 
 import unittest
+from datetime import datetime, date, timedelta
 import numpy as np
-from data_anonymizer import DataAnonymizer, MonetaryTransformer
+from data_anonymizer import DataAnonymizer, MonetaryTransformer, DateTimeTransformer
 
 
 class TestMonetaryTransformer(unittest.TestCase):
@@ -259,6 +260,127 @@ class TestDataAnonymizer(unittest.TestCase):
         
         # Should have high diversity (at least 45 unique out of 50)
         self.assertGreater(unique_names, 45)
+
+
+class TestDateTimeTransformer(unittest.TestCase):
+    """Test cases for DateTimeTransformer."""
+    
+    def test_basic_transformation(self):
+        """Test basic datetime transformation."""
+        transformer = DateTimeTransformer(seed=42)
+        original = datetime(2023, 6, 15, 12, 30, 0)
+        transformed = transformer.transform(original)
+        self.assertNotEqual(original, transformed)
+        self.assertIsInstance(transformed, datetime)
+    
+    def test_preserves_ordering(self):
+        """Test that transformation preserves chronological ordering."""
+        transformer = DateTimeTransformer(seed=42)
+        dt1 = datetime(2023, 1, 1)
+        dt2 = datetime(2023, 6, 15)
+        dt3 = datetime(2023, 12, 31)
+        
+        t1 = transformer.transform(dt1)
+        t2 = transformer.transform(dt2)
+        t3 = transformer.transform(dt3)
+        
+        self.assertTrue(t1 < t2 < t3)
+    
+    def test_preserves_duration(self):
+        """Test that transformation preserves exact durations."""
+        transformer = DateTimeTransformer(seed=42)
+        dt1 = datetime(2023, 1, 1)
+        dt2 = datetime(2023, 6, 15)
+        
+        duration = dt2 - dt1
+        
+        t1 = transformer.transform(dt1)
+        t2 = transformer.transform(dt2)
+        
+        self.assertEqual(t2 - t1, duration)
+    
+    def test_date_transformation(self):
+        """Test date transformation."""
+        transformer = DateTimeTransformer(seed=42)
+        original = date(2023, 6, 15)
+        transformed = transformer.transform_date(original)
+        self.assertNotEqual(original, transformed)
+        self.assertIsInstance(transformed, date)
+
+
+class TestDateTimeAnonymization(unittest.TestCase):
+    """Test cases for date/time anonymization methods."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        self.anonymizer = DataAnonymizer(seed=42)
+    
+    def test_anonymize_datetime_object(self):
+        """Test anonymizing datetime objects."""
+        original = datetime(2023, 6, 15, 12, 30, 0)
+        anon = self.anonymizer.anonymize_datetime(original)
+        self.assertIsInstance(anon, datetime)
+        self.assertNotEqual(original, anon)
+    
+    def test_anonymize_datetime_string_iso(self):
+        """Test anonymizing ISO format datetime strings."""
+        original = "2023-06-15T12:30:00"
+        anon = self.anonymizer.anonymize_datetime(original)
+        self.assertIsInstance(anon, datetime)
+    
+    def test_anonymize_datetime_string_space(self):
+        """Test anonymizing space-separated datetime strings."""
+        original = "2023-06-15 12:30:00"
+        anon = self.anonymizer.anonymize_datetime(original)
+        self.assertIsInstance(anon, datetime)
+    
+    def test_anonymize_date_object(self):
+        """Test anonymizing date objects."""
+        original = date(2023, 6, 15)
+        anon = self.anonymizer.anonymize_date(original)
+        self.assertIsInstance(anon, date)
+        self.assertNotEqual(original, anon)
+    
+    def test_anonymize_date_string(self):
+        """Test anonymizing date strings."""
+        original = "2023-06-15"
+        anon = self.anonymizer.anonymize_date(original)
+        self.assertIsInstance(anon, date)
+    
+    def test_anonymize_timestamp_int(self):
+        """Test anonymizing Unix timestamps."""
+        original = 1686832200
+        anon = self.anonymizer.anonymize_timestamp(original)
+        self.assertIsInstance(anon, int)
+        self.assertNotEqual(original, anon)
+    
+    def test_anonymize_timestamp_string(self):
+        """Test anonymizing timestamp strings."""
+        original = "2023-06-15T12:30:00"
+        anon = self.anonymizer.anonymize_timestamp(original)
+        self.assertIsInstance(anon, int)
+    
+    def test_preserves_chronological_order(self):
+        """Test that dates maintain chronological order."""
+        dates = [
+            datetime(2023, 1, 1),
+            datetime(2023, 6, 15),
+            datetime(2023, 12, 31)
+        ]
+        anon_dates = [self.anonymizer.anonymize_datetime(d) for d in dates]
+        
+        self.assertTrue(anon_dates[0] < anon_dates[1] < anon_dates[2])
+    
+    def test_preserves_date_differences(self):
+        """Test that date differences are preserved."""
+        date1 = datetime(2023, 1, 1)
+        date2 = datetime(2023, 3, 15)
+        expected_diff = date2 - date1
+        
+        anon1 = self.anonymizer.anonymize_datetime(date1)
+        anon2 = self.anonymizer.anonymize_datetime(date2)
+        
+        self.assertEqual(anon2 - anon1, expected_diff)
 
 
 if __name__ == "__main__":

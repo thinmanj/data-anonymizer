@@ -3,8 +3,9 @@ Data anonymization module with preservation of mathematical properties.
 """
 import hashlib
 import random
+import re
 from typing import Any, Dict, List, Optional, Union
-from datetime import datetime
+from datetime import datetime, timedelta, date
 import numpy as np
 from faker import Faker
 
@@ -50,6 +51,41 @@ class MonetaryTransformer:
         return {"scale": self.scale, "shift": self.shift}
 
 
+class DateTimeTransformer:
+    """
+    Transforms date/time values while preserving chronological relationships.
+    
+    Uses offset transformation: new_datetime = old_datetime + offset
+    This preserves ordering and exact durations between dates.
+    """
+    
+    def __init__(self, min_offset_days: int = -365, max_offset_days: int = 365, seed: int = None):
+        """
+        Initialize the datetime transformer.
+        
+        Args:
+            min_offset_days: Minimum offset in days (default: -365)
+            max_offset_days: Maximum offset in days (default: 365)
+            seed: Random seed for reproducibility
+        """
+        if seed is not None:
+            random.seed(seed)
+        
+        self.offset = timedelta(days=random.uniform(min_offset_days, max_offset_days))
+    
+    def transform(self, dt: datetime) -> datetime:
+        """Apply offset transformation to a datetime."""
+        return dt + self.offset
+    
+    def transform_date(self, d: date) -> date:
+        """Apply offset transformation to a date."""
+        return d + self.offset
+    
+    def get_params(self) -> Dict[str, Any]:
+        """Get transformation parameters."""
+        return {"offset_days": self.offset.days + self.offset.seconds / 86400}
+
+
 class DataAnonymizer:
     """Main anonymization class for various data types."""
     
@@ -71,6 +107,7 @@ class DataAnonymizer:
         
         self.faker = Faker(locale)
         self.monetary_transformer = MonetaryTransformer(seed=seed)
+        self.datetime_transformer = DateTimeTransformer(seed=seed)
         self._name_cache = {}
         self._address_cache = {}
         self._company_cache = {}
@@ -298,6 +335,114 @@ class DataAnonymizer:
         
         return fake_card
     
+    def anonymize_datetime(
+        self,
+        dt: Union[datetime, str],
+        consistent: bool = True
+    ) -> datetime:
+        """
+        Anonymize a datetime value while preserving chronological relationships.
+        
+        Args:
+            dt: Original datetime (datetime object or ISO format string)
+            consistent: If True, same input always maps to same output
+        
+        Returns:
+            Anonymized datetime
+        """
+        parsed_dt = self._parse_datetime(dt)
+        if parsed_dt is None:
+            return dt
+        
+        return self.datetime_transformer.transform(parsed_dt)
+    
+    def anonymize_date(
+        self,
+        d: Union[date, str],
+        consistent: bool = True
+    ) -> date:
+        """
+        Anonymize a date value while preserving chronological relationships.
+        
+        Args:
+            d: Original date (date object or string)
+            consistent: If True, same input always maps to same output
+        
+        Returns:
+            Anonymized date
+        """
+        parsed_date = self._parse_date(d)
+        if parsed_date is None:
+            return d
+        
+        return self.datetime_transformer.transform_date(parsed_date)
+    
+    def anonymize_timestamp(
+        self,
+        timestamp: Union[int, float, str],
+        consistent: bool = True
+    ) -> int:
+        """
+        Anonymize a Unix timestamp while preserving chronological relationships.
+        
+        Args:
+            timestamp: Unix timestamp (seconds since epoch) or ISO string
+            consistent: If True, same input always maps to same output
+        
+        Returns:
+            Anonymized timestamp as integer
+        """
+        if isinstance(timestamp, str):
+            try:
+                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+            except ValueError:
+                try:
+                    dt = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    return timestamp
+        else:
+            dt = datetime.fromtimestamp(float(timestamp))
+        
+        transformed = self.datetime_transformer.transform(dt)
+        return int(transformed.timestamp())
+    
+    def _parse_datetime(self, dt: Union[datetime, str]) -> Optional[datetime]:
+        """Parse datetime from various formats."""
+        if isinstance(dt, datetime):
+            return dt
+        if isinstance(dt, str):
+            formats = [
+                '%Y-%m-%dT%H:%M:%S.%f%z',
+                '%Y-%m-%dT%H:%M:%S%z',
+                '%Y-%m-%dT%H:%M:%S',
+                '%Y-%m-%d %H:%M:%S.%f',
+                '%Y-%m-%d %H:%M:%S',
+                '%Y-%m-%d',
+            ]
+            for fmt in formats:
+                try:
+                    return datetime.strptime(dt, fmt)
+                except ValueError:
+                    pass
+            try:
+                return datetime.fromisoformat(dt.replace('Z', '+00:00'))
+            except ValueError:
+                pass
+        return None
+    
+    def _parse_date(self, d: Union[date, str]) -> Optional[date]:
+        """Parse date from various formats."""
+        if isinstance(d, date):
+            return d
+        if isinstance(d, str):
+            formats = ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%Y/%m/%d']
+            for fmt in formats:
+                try:
+                    return datetime.strptime(d, fmt).date()
+                except ValueError:
+                    pass
+        return None
+    
     def anonymize_dataset(
         self,
         data: List[Dict[str, Any]],
@@ -311,7 +456,8 @@ class DataAnonymizer:
             data: List of records (dictionaries)
             field_types: Mapping of field names to types
                         ('name', 'address', 'email', 'phone', 'company', 'ssn', 
-                         'credit_card', 'monetary', 'geolocation')
+                         'credit_card', 'monetary', 'geolocation', 'date', 
+                         'datetime', 'timestamp')
             **kwargs: Additional parameters (e.g., noise_radius_km for geolocation)
         
         Returns:
@@ -343,7 +489,6 @@ class DataAnonymizer:
                 elif field_type == 'monetary':
                     anonymized_record[field] = self.anonymize_monetary(record[field])
                 elif field_type == 'geolocation':
-                    # Expect tuple or dict with lat/lon
                     if isinstance(record[field], (tuple, list)):
                         lat, lon = record[field]
                         noise_radius = kwargs.get('noise_radius_km', 10.0)
@@ -361,6 +506,12 @@ class DataAnonymizer:
                             'latitude': new_lat,
                             'longitude': new_lon
                         }
+                elif field_type == 'date':
+                    anonymized_record[field] = self.anonymize_date(record[field])
+                elif field_type == 'datetime':
+                    anonymized_record[field] = self.anonymize_datetime(record[field])
+                elif field_type == 'timestamp':
+                    anonymized_record[field] = self.anonymize_timestamp(record[field])
             
             anonymized_data.append(anonymized_record)
         

@@ -13,6 +13,7 @@ A Python library for anonymizing sensitive data while preserving mathematical pr
 - **Credit Card Anonymization**: Generate Luhn-valid credit card numbers
 - **Geolocation Anonymization**: Add controlled noise to GPS coordinates
 - **Monetary Value Transformation**: Uses affine transformation (y = ax + b) to preserve mathematical properties
+- **Date/Time Anonymization**: Uses offset transformation to preserve chronological relationships
 - **Multi-Locale Support**: Generate data appropriate for different regions (US, Spanish, French, German, Japanese, etc.)
 
 ## Why Affine Transformation for Monetary Values?
@@ -25,6 +26,16 @@ The library uses affine transformation for monetary values, which has important 
 - **Linear operations preserved**: Operations like `sum(values)` maintain their mathematical relationships
 
 This is similar to projecting data into a different coordinate system where the structure is preserved but the actual values are obscured.
+
+## Why Offset Transformation for Date/Time?
+
+The library uses offset transformation for date/time values, which has important properties:
+
+- **Preserves chronological ordering**: If date A is before date B, anonymized A is still before anonymized B
+- **Preserves exact durations**: The exact time difference between two dates is maintained
+- **No date distortion**: Unlike scaling, dates remain in their natural format without artificial compression or expansion
+
+This is achieved by simply adding a random offset to all dates, ensuring consistent temporal relationships.
 
 ## Installation
 
@@ -98,6 +109,30 @@ anon_transactions = [anonymizer.anonymize_monetary(t) for t in transactions]
 # 4. Differences scaled by the same factor
 ```
 
+## Date/Time Preservation Example
+
+```python
+from data_anonymizer import DataAnonymizer
+from datetime import datetime
+
+anonymizer = DataAnonymizer(seed=42)
+
+# Original dates
+dates = [
+    datetime(2023, 1, 1, 0, 0, 0),   # Jan 1
+    datetime(2023, 6, 15, 12, 0, 0),  # Jun 15
+    datetime(2023, 12, 31, 23, 59, 59) # Dec 31
+]
+
+# Anonymize
+anon_dates = [anonymizer.anonymize_datetime(d) for d in dates]
+
+# Properties preserved:
+# 1. Chronological order: anon_dates[0] < anon_dates[1] < anon_dates[2]
+# 2. Exact durations: anon_dates[1] - anon_dates[0] = Jun 15 - Jan 1
+# 3. Supports datetime objects, ISO strings, date objects, and Unix timestamps
+```
+
 ## Multi-Locale Support
 
 ```python
@@ -151,6 +186,9 @@ Main class for data anonymization.
 - `anonymize_credit_card(card: str, consistent: bool = True) -> str`: Anonymize a credit card number (Luhn-valid)
 - `anonymize_geolocation(latitude: float, longitude: float, noise_radius_km: float = 10.0) -> tuple`: Anonymize GPS coordinates
 - `anonymize_monetary(value: float) -> float`: Anonymize a monetary value
+- `anonymize_datetime(dt: Union[datetime, str], consistent: bool = True) -> datetime`: Anonymize a datetime (object or string)
+- `anonymize_date(d: Union[date, str], consistent: bool = True) -> date`: Anonymize a date (object or string)
+- `anonymize_timestamp(timestamp: Union[int, float, str], consistent: bool = True) -> int`: Anonymize a Unix timestamp
 - `anonymize_dataset(data: List[Dict], field_types: Dict[str, str], **kwargs) -> List[Dict]`: Anonymize an entire dataset
 
 ### MonetaryTransformer
@@ -163,6 +201,20 @@ Specialized class for monetary value transformation using affine transformation.
 - `transform_array(values: List[float]) -> List[float]`: Transform a list of values
 - `inverse_transform(value: float) -> float`: Reverse the transformation
 - `get_params() -> Dict[str, float]`: Get the transformation parameters (scale and shift)
+
+### DateTimeTransformer
+
+Specialized class for date/time transformation using offset transformation.
+
+#### Constructor
+
+- `DateTimeTransformer(min_offset_days: int = -365, max_offset_days: int = 365, seed: int = None)`: Initialize with configurable offset range
+
+#### Methods
+
+- `transform(dt: datetime) -> datetime`: Apply offset transformation to a datetime
+- `transform_date(d: date) -> date`: Apply offset transformation to a date
+- `get_params() -> Dict[str, float]`: Get the transformation parameters (offset in days)
 
 ## Field Types
 
@@ -177,6 +229,9 @@ When using `anonymize_dataset()`, specify field types:
 - `"credit_card"`: Credit card number
 - `"geolocation"`: GPS coordinates (supports tuple, list, or dict format)
 - `"monetary"`: Monetary values
+- `"date"`: Date values (datetime.date or string)
+- `"datetime"`: DateTime values (datetime.datetime or string)
+- `"timestamp"`: Unix timestamps (int or ISO string)
 
 ## Consistency
 
@@ -197,12 +252,18 @@ Set `consistent=False` for methods that support it to get different outputs each
 
 ## What's New in Latest Version
 
+### Date/Time Anonymization (v0.3.0)
+- **DateTimeTransformer**: New transformer class for offset-based date/time anonymization
+- **Preserves chronological order**: Same date A before B, anonymized A before anonymized B
+- **Preserves exact durations**: Time differences between dates are maintained exactly
+- **Multiple input formats**: Supports datetime objects, date objects, ISO strings, and Unix timestamps
+- **34 unit tests**: Comprehensive test coverage for date/time transformations
+
 ### Faker Integration (v0.2.0)
 - **Massive diversity improvement**: Previously limited to 182 name combinations (14 × 13), now generates millions of unique, realistic names
 - **Multi-locale support**: Generate region-appropriate data for 50+ locales
 - **New field types**: Company names, SSN, and Luhn-valid credit card numbers
 - **More realistic data**: Addresses, phone numbers, and names match real-world patterns
-- **21 unit tests**: Increased from 13 tests with comprehensive coverage
 
 ## Limitations
 
